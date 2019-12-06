@@ -15,4 +15,3 @@
 * [kubeadm](content/kubeadm/index.md)
 
 * [kubectl](content/kubectl/index.md)
-
