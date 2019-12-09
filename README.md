@@ -8,13 +8,13 @@ kubernetes 简称 k8s，是一个容器调度工具，它提供了强大的部�
 
 ## 组件列表
 
-* [kube-apiserver](https://kube-explorer.gitbook.io/kube-explorer/index)
-* [kube-controller-manager](https://kube-explorer.gitbook.io/kube-explorer/index-1)
-* [kube-proxy](https://kube-explorer.gitbook.io/kube-explorer/index-2)
-* [kube-scheduler](https://kube-explorer.gitbook.io/kube-explorer/index-3)
-* [kubeadm](https://kube-explorer.gitbook.io/kube-explorer/index-4)
-* [kubectl](https://kube-explorer.gitbook.io/kube-explorer/index-5)
-* [kubelet](https://kube-explorer.gitbook.io/kube-explorer/index-6)
+* [kube-apiserver](https://kube-explorer.gitbook.io/kube-explorer/index)      @hwdef
+* [kube-controller-manager](https://kube-explorer.gitbook.io/kube-explorer/index-1)     @tanjunchen
+* [kube-proxy](https://kube-explorer.gitbook.io/kube-explorer/index-2)      @SataQiu
+* [kube-scheduler](https://kube-explorer.gitbook.io/kube-explorer/index-3)      @yuxiaobo96
+* [kubeadm](https://kube-explorer.gitbook.io/kube-explorer/index-4)     @SataQiu
+* [kubectl](https://kube-explorer.gitbook.io/kube-explorer/index-5)     @TomatoAres
+* [kubelet](https://kube-explorer.gitbook.io/kube-explorer/index-6)     @xichengliudui
 
 ## 如何参与贡献
 
