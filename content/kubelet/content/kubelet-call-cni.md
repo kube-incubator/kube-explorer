@@ -16,7 +16,7 @@ CNI 大家感兴趣可以查看[容器网络接口规范](https://github.com/con
 
 kubernetes 版本基于 `v1.13.0`
 
-```
+```go
 	pluginSettings := dockershim.NetworkPluginSettings{
 		HairpinMode:        kubeletconfiginternal.HairpinMode(kubeCfg.HairpinMode),
 		NonMasqueradeCIDR:  nonMasqueradeCIDR,
@@ -29,7 +29,7 @@ kubernetes 版本基于 `v1.13.0`
 `pkg/kubelet/kubelet.go`
 
 603-610 行，这个可以很清楚的看出这时设置了网络插件的一些参数，但是并没有调用其本身。
-```
+```go
 	switch containerRuntime {
 	case kubetypes.DockerContainerRuntime:
 		// 创建并启动作为 grpc 服务器运行的 CRI shim。
@@ -46,7 +46,7 @@ kubernetes 版本基于 `v1.13.0`
 ```
 `pkg/kubelet/kubelet.go`
 
-617-654 行，从switch 可以看出如果容器处于 Runtime 状态就调用 NewDockerService 并且将上面刚设置的一些参数同样转递了过去，可以肯定就是在这里调用的。
+617-654 行，从switch 可以看出如果容器处于 Runtime 状态就调用 NewDockerService 并且将上面刚设置的一些参数同样转递了过去，可以肯定就是在这里调用的。go
 ```
 func NewDockerService(config *ClientConfig, podSandboxImage string, streamingConfig *streaming.Config, pluginSettings *NetworkPluginSettings,
 	cgroupsName string, kubeCgroupDriver string, dockershimRootDir string, startLocalStreamingServer bool) (DockerService, error) {
@@ -62,7 +62,7 @@ func NewDockerService(config *ClientConfig, podSandboxImage string, streamingCon
 
 239-241 行，跟踪 `NewDockerService` 函数来到这里。`cniPlugins := cni.ProbeNetworkPlugins(pluginSettings.PluginConfDir, pluginSettings.PluginBinDirs)` 它执行了具体的函数，使用**探针方式获取当前环境的网络插件**，我们接着往下找一下。
 
-```
+```go
 func ProbeNetworkPlugins(confDir string, binDirs []string) []network.NetworkPlugin {
 	old := binDirs
 	binDirs = make([]string, 0, len(binDirs))
@@ -90,7 +90,7 @@ func ProbeNetworkPlugins(confDir string, binDirs []string) []network.NetworkPlug
 `pkg/kubelet/dockershim/network/cni/cni.go`
 
 121-126 行，调用 `cniNetworkPlugin` 函数。在查看 `cniNetworkPlugin` 函数之前，我们先查看一下 `NetworkPlugin` 函数
-```
+```go
 // NetworkPlugin 是 kubelet 网络插件的接口
 type NetworkPlugin interface {
 	// 初始化插件。这将在调用任何其他方法之前被精确地调用一次
@@ -121,7 +121,7 @@ type NetworkPlugin interface {
 `pkg/kubelet/dockershim/network/plugins.go`
 
 47-76 行，显而易见，这里定义了插件的所有接口。我们再返回查看 `cniNetworkPlugin` 函数。
-```
+```go
 type cniNetworkPlugin struct {
 	network.NoopNetworkPlugin
 
@@ -143,7 +143,7 @@ type cniNetworkPlugin struct {
 43-57 行，我想现在大家应该明白了这个 `cniNetworkPlugin` 结构体实现了 `NetworkPlugin` 函数中定义的所有接口。
 我们接着查看上面负责同步网络配置的 `ProbeNetworkPlugins` 函数。
 
-```
+```go
 func (plugin *cniNetworkPlugin) syncNetworkConfig() {
 	network, err := getDefaultCNINetwork(plugin.confDir, plugin.binDirs)
 	if err != nil {
@@ -162,7 +162,7 @@ func (plugin *cniNetworkPlugin) syncNetworkConfig() {
 ***
 
 接着从 `pkg/kubelet/dockershim/docker_service.go` 来看。
-```
+```go
 ... ...
 	// dockershim 目前只支持 CNI 插件。
 	pluginSettings.PluginBinDirs = cni.SplitDirs(pluginSettings.PluginBinDirString)
@@ -179,7 +179,7 @@ func (plugin *cniNetworkPlugin) syncNetworkConfig() {
 ... ...
 ```
 上面皆以执行完毕，下面就是就是执行：`InitNetworkPlugin` 运行网络插件。
-```
+```go
 // InitNetworkPlugin 插入与 networkPluginName 匹配的插件。插件名唯一。
 func InitNetworkPlugin(plugins []NetworkPlugin, networkPluginName string, host Host, hairpinMode kubeletconfig.HairpinMode, nonMasqueradeCIDR string, mtu int) (NetworkPlugin, error) {
 	if networkPluginName == "" {
@@ -235,7 +235,7 @@ func InitNetworkPlugin(plugins []NetworkPlugin, networkPluginName string, host H
 来自：`http://www.sohu.com/a/129910066_515888`
 
 我们回到 `pkg/kubelet/dockershim/network/cni/cni.go` 中，已知 `cniNetworkPlugin` 实现了插件的所有接口，我们找到 `SetUpPod` 函数。
-```
+```go
 func (plugin *cniNetworkPlugin) SetUpPod(namespace string, name string, id kubecontainer.ContainerID, annotations, options map[string]string) error {
 	if err := plugin.checkInitialized(); err != nil {
 		return err
@@ -259,7 +259,7 @@ func (plugin *cniNetworkPlugin) SetUpPod(namespace string, name string, id kubec
 }
 ```
 274-292 行，我们跟踪 `addToNetwork` 函数。
-```
+```go
 func (plugin *cniNetworkPlugin) addToNetwork(network *cniNetwork, podName string, podNamespace string, podSandboxID kubecontainer.ContainerID, podNetnsPath string, annotations, options map[string]string) (cnitypes.Result, error) {
 	rt, err := plugin.buildCNIRuntimeConf(podName, podNamespace, podSandboxID, podNetnsPath, annotations, options)
 	if err != nil {
@@ -280,7 +280,7 @@ func (plugin *cniNetworkPlugin) addToNetwork(network *cniNetwork, podName string
 }
 ```
 312-329 行，调用 `buildCNIRuntimeConf` 函数，下面只是一些判断。我们查看 `buildCNIRuntimeConf` 函数。
-```
+```go
 func (plugin *cniNetworkPlugin) buildCNIRuntimeConf(podName string, podNs string, podSandboxID kubecontainer.ContainerID, podNetnsPath string, annotations, options map[string]string) (*libcni.RuntimeConf, error) {
 	rt := &libcni.RuntimeConf{
 		ContainerID: podSandboxID.ID,
@@ -298,7 +298,7 @@ func (plugin *cniNetworkPlugin) buildCNIRuntimeConf(podName string, podNs string
 ```
 352-420 行，这个函数执行了非常多的东西，但我们只需要看 `libcni` 调用了 `RuntimeConf` 函数。这时候看导入 `"github.com/containernetworking/cni/libcni"` 实际已经执行到了 `cni` 项目，我们可以前往 github 查看一下这个函数具体写了一些什么。
 
-```
+```go
 func (c *CNIConfig) addNetwork(ctx context.Context, name, cniVersion string, net *NetworkConfig, prevResult types.Result, rt *RuntimeConf) (types.Result, error) {
 	c.ensureExec()
 	pluginPath, err := c.exec.FindInPath(net.Network.Type, c.Path)
