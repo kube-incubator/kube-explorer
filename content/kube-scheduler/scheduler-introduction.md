@@ -1,8 +1,10 @@
 # scheduler-introduction
 
-Scheduler 调度器作为 k8s 三大核心组件之一，运行于控制平面节点上，主要在集群中对资源进行调度。根据其特定的调度算法和策略将 pod 调度到最优工作节点上，实现资源的合理分配。
+Scheduler 调度器作为 k8s 三大核心组件之一，运行于控制平面节点上，主要在集群中对资源进行调度。
+根据其特定的调度算法和策略将 pod 调度到最优工作节点上，实现资源的合理分配。
 
-Scheduler 作为一个单独的程序运行，时刻监听 apiserver， 获取 PodSpec.NodeName 为空的 pod、node 列表，将 pod 绑定到节点上。这里可以把 Scheduler 当成一个黑盒，入参是带调度的 pod 和节点的信息，经过黑盒内部的调度算法和策略处理，输出最优的节点，并把pod调度到该节点上。
+Scheduler 作为一个单独的程序运行，时刻监听 apiserver， 获取 PodSpec.NodeName 为空的 pod、node 列表，将 pod 绑定到节点上。
+这里可以把 Scheduler 当成一个黑盒，入参是带调度的 pod 和节点的信息，经过黑盒内部的调度算法和策略处理，输出最优的节点，并把pod调度到该节点上。
 
 ## scheduler 源码主线逻辑
 
