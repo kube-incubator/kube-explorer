@@ -47,7 +47,7 @@ kubernetes 版本基于 `v1.13.0`
 `pkg/kubelet/kubelet.go`
 
 617-654 行，从switch 可以看出如果容器处于 Runtime 状态就调用 NewDockerService 并且将上面刚设置的一些参数同样转递了过去，可以肯定就是在这里调用的。go
-```
+```go
 func NewDockerService(config *ClientConfig, podSandboxImage string, streamingConfig *streaming.Config, pluginSettings *NetworkPluginSettings,
 	cgroupsName string, kubeCgroupDriver string, dockershimRootDir string, startLocalStreamingServer bool) (DockerService, error) {
 ... ...
