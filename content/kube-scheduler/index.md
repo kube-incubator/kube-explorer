@@ -21,7 +21,7 @@
 
 ## 章节内容
 
-1. 对 scheduler 详细介绍
+1. [对 scheduler 详细介绍](https://github.com/kube-incubator/kube-explorer/blob/master/content/kube-scheduler/scheduler-introduction.md)
 
 2. 资源调度（Predicates 策略）
 
