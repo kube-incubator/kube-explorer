@@ -6,3 +6,9 @@
 
 首先 kubelet 它是 Kubernetes 中最底层的组件。它负责每台机器上运行/创建/删除/更新容器。你可以将认为它是一个类似于进程级别的监控，就像 [supervisord](http://supervisord.org/)（主要关注于运行容器）。它始终要做的就是：用户给定一组要运行的容器并且确保它们都在运行。
 
+# 章节内容
+
+* kubelet 创建 pod
+* kubelet 删除 pod
+* kubelet 更新 pod
+* [kubelet 调用 CNI 插件](https://github.com/kube-incubator/kube-explorer/blob/master/content/kubelet/content/kubelet-call-cni.md)
