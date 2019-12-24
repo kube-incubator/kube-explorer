@@ -10,11 +10,11 @@
 
 * [kube-apiserver](https://kube-explorer.gitbook.io/kube-explorer/index)      @hwdef
 * [kube-controller-manager](https://kube-explorer.gitbook.io/kube-explorer/index-1)     @tanjunchen
-* [kube-proxy](https://kube-explorer.gitbook.io/kube-explorer/index-2)      @SataQiu
-* [kube-scheduler](https://kube-explorer.gitbook.io/kube-explorer/index-3)      @yuxiaobo96
-* [kubeadm](https://kube-explorer.gitbook.io/kube-explorer/index-4)     @SataQiu
-* [kubectl](https://kube-explorer.gitbook.io/kube-explorer/index-5)     @TomatoAres
-* [kubelet](https://kube-explorer.gitbook.io/kube-explorer/index-6)     @xichengliudui
+* [kube-proxy](https://kube-explorer.gitbook.io/kube-explorer/index-4)      @SataQiu
+* [kube-scheduler](https://kube-explorer.gitbook.io/kube-explorer/index-2)      @yuxiaobo96
+* [kubeadm](https://kube-explorer.gitbook.io/kube-explorer/index-5)     @SataQiu
+* [kubectl](https://kube-explorer.gitbook.io/kube-explorer/index-6)     @TomatoAres
+* [kubelet](https://kube-explorer.gitbook.io/kube-explorer/index-3)     @xichengliudui
 
 ## 如何参与贡献
 
