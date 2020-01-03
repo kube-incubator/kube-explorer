@@ -22,15 +22,10 @@
 ## 章节内容
 
 1. [对 scheduler 详细介绍](https://github.com/kube-incubator/kube-explorer/blob/master/content/kube-scheduler/scheduler-introduction.md)
-
-2. 执行调度策略前的代码逻辑
-
+2. [scheduler源码分析之入口函数](https://github.com/kube-incubator/kube-explorer/blob/master/content/kube-scheduler/code-analysis1.md)
 3. 资源调度（Predicates 策略）
-
 4. 关系调度（满足 Pod、Node 之间的关系）
-
 5. 优先级调度（Priority策略）
-
 6. 抢占式调度（Preemption 策略）
-
 7. 外部调度（scheduler extender，类似 webhook）
+

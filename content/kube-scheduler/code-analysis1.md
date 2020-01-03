@@ -575,7 +575,7 @@ func (r Registry) Merge(in Registry) error {
 
 ## 2.3 InformerFactory.Start
 
-第80行，启动所有informers，包括PodInformer、InformerFactory，主要涉及到informer，请参阅informer机制
+第80行，启动所有informers，包括PodInformer、InformerFactory，主要涉及到informer，请参阅[informer机制](https://github.com/kube-incubator/kube-explorer/blob/master/content/kube-scheduler/informer.md)
 
 ```go
 	// Start all informers.
@@ -592,7 +592,7 @@ func (r Registry) Merge(in Registry) error {
 	cc.InformerFactory.WaitForCacheSync(ctx.Done())
 ```
 
-在这一步，涉及到reflector(反射器)、apiserver、etcd、store等的关系，一并在informer机制中讲解
+在这一步，涉及到reflector(反射器)、apiserver、etcd、store等的关系，一并在[informer机制](https://github.com/kube-incubator/kube-explorer/blob/master/content/kube-scheduler/informer.md)中讲解
 
 ## 2.5 sched.Run
 
