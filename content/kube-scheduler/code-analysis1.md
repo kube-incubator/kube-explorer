@@ -327,7 +327,71 @@ func (o *Options) Config() (*schedulerappconfig.Config, error) {
 
 第36行，`algorithmprovider.ApplyFeatureGates()`提供默认的算法，后面详细介绍
 
-第48行，`return Run(ctx, cc, registryOptions...)`调用Run函数（启动程序），下面对 Run 函数详细介绍
+第45行和第46行：
+
+```go
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+```
+
+由`WithCancel()`函数返回的ctx是`context.Background()`的子context，之后在协程中select，如果stopCh可以读取，则调用`cancel()`函数。这个`cancel()`函数在`WithCancel()`中返回，作用是把context所有的children关闭并移除。
+
+`WithCancel()`函数的代码：
+
+```go
+// WithCancel returns a copy of parent with a new Done channel. The returned
+// context's Done channel is closed when the returned cancel function is called
+// or when the parent context's Done channel is closed, whichever happens first.
+//
+// Canceling this context releases resources associated with it, so code should
+// call cancel as soon as the operations running in this Context complete.
+func WithCancel(parent Context) (ctx Context, cancel CancelFunc) {
+	c := newCancelCtx(parent)
+	propagateCancel(parent, &c)
+	return &c, func() { c.cancel(true, Canceled) }
+}
+```
+
+其中：第10行调用`cancel()`函数，具体代码如下
+
+```go
+// cancel closes c.done, cancels each of c's children, and, if
+// removeFromParent is true, removes c from its parent's children.
+func (c *cancelCtx) cancel(removeFromParent bool, err error) {
+	if err == nil {
+		panic("context: internal error: missing cancel error")
+	}
+	c.mu.Lock()
+	if c.err != nil {
+		c.mu.Unlock()
+		return // already canceled
+	}
+	c.err = err
+	if c.done == nil {
+		c.done = closedchan
+	} else {
+		close(c.done)
+	}
+	for child := range c.children {
+		// NOTE: acquiring the child's lock while holding parent's lock.
+		child.cancel(false, err)
+	}
+	c.children = nil
+	c.mu.Unlock()
+
+	if removeFromParent {
+		removeChild(c.Context, c)
+	}
+}  
+```
+
+第48行：
+
+1. `return Run(ctx, cc, registryOptions...)`调用了`Run`函数（启动程序）
+2. 接着此`Run`函数调用了`sched.Run(ctx)`（在下一节代码的106行）
+3. `sched.Run(ctx)这个函数`会不停的在协程中运行`schedulerOne`，对pod执行一轮一轮的调度，直到接收到stopChannel。与此同时，用ctx.Done()阻塞住run的运行，直到ctx.Done()可以读取，run才会返回。一旦run()结束，调度器也停止运作。
+
+这3个小步骤是scheduler源码中主要函数的调用流程，下面对 Run 函数详细介绍
 
 ## 2. Run
 
@@ -460,7 +524,7 @@ func Run(ctx context.Context, cc schedulerserverconfig.CompletedConfig, outOfTre
 
 ## 2.1 outOfTreeRegistry
 
-第6行，创建Registry(注册表)，其中包含所有可用的plugins，并控制这些plugin的启动和初始化。
+第6行，创建Registry(注册表)，其中包含所有可用的plugins，并控制这些plugin的启动和初始化。这里的Registry相当于一个注册中心，只有在Registry中注册了的plugins（策略），才能在之后的scheduler调度逻辑中启动并生效。
 
 ```go
 outOfTreeRegistry := make(framework.Registry)
@@ -612,10 +676,9 @@ func (sched *Scheduler) Run(ctx context.Context) {
 	if !cache.WaitForCacheSync(ctx.Done(), sched.scheduledPodsHasSynced) {
 		return
 	}
-	sched.SchedulingQueue.Run()
+
 	wait.UntilWithContext(ctx, sched.scheduleOne, 0)
-	sched.SchedulingQueue.Close()
 }
 ```
 
-以上是从入口函数开始，到执行scheduler逻辑之前的源码分析，sched.Run的源码分析在下一节。
+以上是从入口函数开始，到执行schedulerOne逻辑之前的源码分析，sched.Run的源码分析在下一节。
