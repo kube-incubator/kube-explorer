@@ -14,7 +14,7 @@
 4. 在 node1 上的 kubelet 对调度到本节点上的 pod 进行管理，执行其剩余的生命周期。
 
 在这个过程中，sheduler 主要是对 nodeName 为空的 Pod 进行多策略调度，在调度过程中不仅需要关注 pod 本身的资源需求（如 memory、cpu、affinity等），还需要对 node 进行筛选，选出 source 最高的节点来部署这个 pod。
-当然，也可以手动调度（不使用默认的调度器）如创建 pod 时直接指定 nodeName，也可以自定义调度器，同时在集群上部署多个调度器。可参考官方文档[部署多个调度器](https://kubernetes.io/zh/docs/tasks/administer-cluster/configure-multiple-schedulers/)
+当然，也可以手动调度（不使用默认的调度器）如创建 pod 时直接指定 nodeName，也可以自定义调度器。或者在集群上部署多个调度器，可参考官方文档[部署多个调度器](https://kubernetes.io/zh/docs/tasks/administer-cluster/configure-multiple-schedulers/)
 在 pod 调度的过程中，还涉及到 node 上的 Taints（污点）参数，以及 pod 上的 Tolerations 参数的使用。
 
 **注意**：这里所说的 scheduler 是指集群中默认的调度器：default-scheduler。
@@ -28,4 +28,3 @@
 5. 优先级调度（Priority策略）
 6. 抢占式调度（Preemption 策略）
 7. 外部调度（scheduler extender，类似 webhook）
-
