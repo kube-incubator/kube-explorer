@@ -355,7 +355,7 @@ func (sched *Scheduler) scheduleOne(ctx context.Context) {
 }
 ```
 
-在下面对`scheduleOne()`函数中的重要代码进行分析
+`scheduleOne()`函数中使用了很多plugins，这里不做详细介绍。下面是对该函数的的重要代码进行分析：
 
 ## 3. sched.Framework
 
@@ -412,7 +412,7 @@ podInfo := sched.NextPod()
 
 > 代码在`/pkg/scheduler/core/generic_scheduler.go`
 
-具体代码如下：
+`sched.Algorithm.Schedule（）`函数的具体代码实现如下：
 
 ```go
 // Schedule tries to schedule the given pod to one of the nodes in the node list.
@@ -704,3 +704,234 @@ func (g *genericScheduler) selectHost(nodeScoreList framework.NodeScoreList) (st
 		return
 ```
 
+## 8. sched.assume
+
+第85行，`sched.assume()`函数对pod假性绑定，是pod在bind行为真正发生前的状态，与bind操作异步，从而让调度器不用等待耗时的bind操作返回结果，提升调度器的效率。在assume pod执行时，还穿插着assume pod volumes、bind volumes等逻辑。
+
+此处的代码如下：
+
+```go
+// Tell the cache to assume that a pod now is running on a given node, even though it hasn't been bound yet.
+	// This allows us to keep scheduling without waiting on binding to occur.
+	assumedPodInfo := podInfo.DeepCopy()
+	assumedPod := assumedPodInfo.Pod
+
+	// Assume volumes first before assuming the pod.
+	//
+	// If all volumes are completely bound, then allBound is true and binding will be skipped.
+	//
+	// Otherwise, binding of volumes is started after the pod is assumed, but before pod binding.
+	//
+	// This function modifies 'assumedPod' if volume binding is required.
+	allBound, err := sched.VolumeBinder.Binder.AssumePodVolumes(assumedPod, scheduleResult.SuggestedHost)
+	if err != nil {
+		sched.recordSchedulingFailure(assumedPodInfo, err, SchedulerError,
+			fmt.Sprintf("AssumePodVolumes failed: %v", err))
+		metrics.PodScheduleErrors.Inc()
+		return
+	}
+
+	// Run "reserve" plugins.
+	if sts := fwk.RunReservePlugins(schedulingCycleCtx, state, assumedPod, scheduleResult.SuggestedHost); !sts.IsSuccess() {
+		sched.recordSchedulingFailure(assumedPodInfo, sts.AsError(), SchedulerError, sts.Message())
+		metrics.PodScheduleErrors.Inc()
+		return
+	}
+
+	// assume modifies `assumedPod` by setting NodeName=scheduleResult.SuggestedHost
+	err = sched.assume(assumedPod, scheduleResult.SuggestedHost)
+	if err != nil {
+		// This is most probably result of a BUG in retrying logic.
+		// We report an error here so that pod scheduling can be retried.
+		// This relies on the fact that Error will check if the pod has been bound
+		// to a node and if so will not add it back to the unscheduled pods queue
+		// (otherwise this would cause an infinite loop).
+		sched.recordSchedulingFailure(assumedPodInfo, err, SchedulerError, fmt.Sprintf("AssumePod failed: %v", err))
+		metrics.PodScheduleErrors.Inc()
+		// trigger un-reserve plugins to clean up state associated with the reserved Pod
+		fwk.RunUnreservePlugins(schedulingCycleCtx, state, assumedPod, scheduleResult.SuggestedHost)
+		return
+	}
+	// bind the pod to its host asynchronously (we can do this b/c of the assumption step above).
+	go func() {
+		bindingCycleCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		metrics.SchedulerGoroutines.WithLabelValues("binding").Inc()
+		defer metrics.SchedulerGoroutines.WithLabelValues("binding").Dec()
+```
+
+其中具体的代码分析如下：
+
+### 8.1 assumedPodInfo
+
+第3行，`assumedPodInfo`将pod和它假性绑定的nodeName存入到scheduler cache 中，方便继续执行调度逻辑。
+
+### 8.2 AssumePodVolumes
+
+第13行，`sched.VolumeBinder.Binder.AssumePodVolumes()`函数是在pod假性绑定前，对pod上的volumes先进行假性绑定。注释写的很清楚：volumes的绑定发生在pod假性绑定之后，pod真实bind之前。代码如下：
+
+```go
+	// Assume volumes first before assuming the pod.
+	//
+	// If all volumes are completely bound, then allBound is true and binding will be skipped.
+	//
+	// Otherwise, binding of volumes is started after the pod is assumed, but before pod binding.
+	//
+	// This function modifies 'assumedPod' if volume binding is required.
+	allBound, err := sched.VolumeBinder.Binder.AssumePodVolumes(assumedPod, scheduleResult.SuggestedHost)
+	if err != nil {
+		sched.recordSchedulingFailure(assumedPodInfo, err, SchedulerError,
+			fmt.Sprintf("AssumePodVolumes failed: %v", err))
+		metrics.PodScheduleErrors.Inc()
+		return
+	}
+```
+
+具体来说，这里总共与四种状态，assume volumes(假性绑定volumes)、assume pod(假性绑定pod)、bind volumes(真实绑定volumes)、bind pod(真实绑定pod)。这四个状态的执行顺序为：
+
+assume volumes -> assume pod -> bind volumes -> bind pod
+
+### 8.3 RunReservePlugins
+
+第21行，`fwk.RunReservePlugins()`函数运行reserve插件，使pod将要绑定的节点为该pod预留出它所需要的资源。该事件发生在调度器将pod绑定到节点之前，目的是避免调度器在等待 pod 与节点绑定的过程中调度新的 Pod 到节点上(因为绑定pod到节点上是异步操作)，发生实际使用资源超出可用资源的情况。
+
+### 8.4 assume
+
+第29行，`sched.assume()`对pod假性绑定，将scheduler cache中pod的nodeName设置成scheduleResult.SuggestedHost（最后调度结果：节点的host）。
+
+`sched.assume()`函数的具体代码实现：
+
+```go
+// assume signals to the cache that a pod is already in the cache, so that binding can be asynchronous.
+// assume modifies `assumed`.
+func (sched *Scheduler) assume(assumed *v1.Pod, host string) error {
+	// Optimistically assume that the binding will succeed and send it to apiserver
+	// in the background.
+	// If the binding fails, scheduler will release resources allocated to assumed pod
+	// immediately.
+	assumed.Spec.NodeName = host
+
+	if err := sched.SchedulerCache.AssumePod(assumed); err != nil {
+		klog.Errorf("scheduler cache AssumePod failed: %v", err)
+		return err
+	}
+	// if "assumed" is a nominated pod, we should remove it from internal cache
+	if sched.SchedulingQueue != nil {
+		sched.SchedulingQueue.DeleteNominatedPodIfExists(assumed)
+	}
+
+	return nil
+}
+```
+
+如果假性绑定成功，将结果发送给apiserver；如果假性绑定失败，scheduler将立即释放分配给假定pod的资源
+
+。在代码中还有一处校验，如果假定的pod是 nominated pod，将从内部缓存中删除它，nominated pod 的使用涉及到preemt（抢占策略）的逻辑，就不在这赘述了。
+
+在假性绑定成功之后，进行pod的异步绑定操作。
+
+## 9. sched.bindVolumes
+
+第125行，验证所有的volumes是否绑定成功，volumes的绑定发生在pod真实绑定之前。
+
+```go
+// Bind volumes first before Pod
+		if !allBound {
+			err := sched.bindVolumes(assumedPod)
+			if err != nil {
+				sched.recordSchedulingFailure(assumedPodInfo, err, "VolumeBindingFailed", err.Error())
+				metrics.PodScheduleErrors.Inc()
+				// trigger un-reserve plugins to clean up state associated with the reserved Pod
+				fwk.RunUnreservePlugins(bindingCycleCtx, state, assumedPod, scheduleResult.SuggestedHost)
+				return
+			}
+		}
+```
+
+`bindVolumes()`函数的具体代码实现如下：
+
+```go
+// bindVolumes will make the API update with the assumed bindings and wait until
+// the PV controller has completely finished the binding operation.
+//
+// If binding errors, times out or gets undone, then an error will be returned to
+// retry scheduling.
+func (sched *Scheduler) bindVolumes(assumed *v1.Pod) error {
+	klog.V(5).Infof("Trying to bind volumes for pod \"%v/%v\"", assumed.Namespace, assumed.Name)
+	err := sched.VolumeBinder.Binder.BindPodVolumes(assumed)
+	if err != nil {
+		klog.V(1).Infof("Failed to bind volumes for pod \"%v/%v\": %v", assumed.Namespace, assumed.Name, err)
+
+		// Unassume the Pod and retry scheduling
+		if forgetErr := sched.SchedulerCache.ForgetPod(assumed); forgetErr != nil {
+			klog.Errorf("scheduler cache ForgetPod failed: %v", forgetErr)
+		}
+
+		return err
+	}
+
+	klog.V(5).Infof("Success binding volumes for pod \"%v/%v\"", assumed.Namespace, assumed.Name)
+	return nil
+}
+```
+
+## 10. sched.bind
+
+第152行，`bind()`函数将assumed pod真实绑定到node上。
+
+```go
+		err := sched.bind(bindingCycleCtx, assumedPod, scheduleResult.SuggestedHost, state)
+```
+
+`bind()`函数的具体代码实现：
+
+```go
+// bind binds a pod to a given node defined in a binding object.  We expect this to run asynchronously, so we
+// handle binding metrics internally.
+func (sched *Scheduler) bind(ctx context.Context, assumed *v1.Pod, targetNode string, state *framework.CycleState) error {
+	bindingStart := time.Now()
+	bindStatus := sched.Framework.RunBindPlugins(ctx, state, assumed, targetNode)
+	var err error
+	if !bindStatus.IsSuccess() {
+		if bindStatus.Code() == framework.Skip {
+			// All bind plugins chose to skip binding of this pod, call original binding function.
+			// If binding succeeds then PodScheduled condition will be updated in apiserver so that
+			// it's atomic with setting host.
+			err = sched.GetBinder(assumed).Bind(&v1.Binding{
+				ObjectMeta: metav1.ObjectMeta{Namespace: assumed.Namespace, Name: assumed.Name, UID: assumed.UID},
+				Target: v1.ObjectReference{
+					Kind: "Node",
+					Name: targetNode,
+				},
+			})
+		} else {
+			err = fmt.Errorf("Bind failure, code: %d: %v", bindStatus.Code(), bindStatus.Message())
+		}
+	}
+	if finErr := sched.SchedulerCache.FinishBinding(assumed); finErr != nil {
+		klog.Errorf("scheduler cache FinishBinding failed: %v", finErr)
+	}
+	if err != nil {
+		klog.V(1).Infof("Failed to bind pod: %v/%v", assumed.Namespace, assumed.Name)
+		if err := sched.SchedulerCache.ForgetPod(assumed); err != nil {
+			klog.Errorf("scheduler cache ForgetPod failed: %v", err)
+		}
+		return err
+	}
+
+	metrics.BindingLatency.Observe(metrics.SinceInSeconds(bindingStart))
+	metrics.DeprecatedBindingLatency.Observe(metrics.SinceInMicroseconds(bindingStart))
+	metrics.SchedulingLatency.WithLabelValues(metrics.Binding).Observe(metrics.SinceInSeconds(bindingStart))
+	metrics.DeprecatedSchedulingLatency.WithLabelValues(metrics.Binding).Observe(metrics.SinceInSeconds(bindingStart))
+	sched.Recorder.Eventf(assumed, nil, v1.EventTypeNormal, "Scheduled", "Binding", "Successfully assigned %v/%v to %v", assumed.Namespace, assumed.Name, targetNode)
+	return nil
+}
+```
+
+其中：
+
+第12行，如果绑定成功，调用`sched.GetBinder()`函数，像apiserver发送bind请求。apiserver将处理这个请求，发送到节点上的kubelete。由kubelet进行后续的操作，并返回结果。
+
+第28行，如果绑定失败，调用`sched.SchedulerCache.ForgetPod()`函数，从cache中移除该assumed pod。
+
+在绑定失败后，会触发unserver事件，将node上为该pod预留的资源释放掉。
