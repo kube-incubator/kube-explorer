@@ -381,7 +381,7 @@ podInfo := sched.NextPod()
 
 其中：在第7行，`pod.DeletionTimestamp`，检查要调度的pod的时间戳，如果pod的`DeletionTimestamp`不为空，则直接返回，因为这个pod已经被下达了删除命令，不需要进行调度。
 
-### 5. 设定预选的节点数量
+## 5. 设定预选的节点数量
 
 在第19行，代码如下：
 
