@@ -18,13 +18,3 @@
 在 pod 调度的过程中，还涉及到 node 上的 Taints（污点）参数，以及 pod 上的 Tolerations 参数的使用。
 
 **注意**：这里所说的 scheduler 是指集群中默认的调度器：default-scheduler。
-
-## 章节内容
-
-1. [对 scheduler 详细介绍](https://github.com/kube-incubator/kube-explorer/blob/master/content/kube-scheduler/scheduler-introduction.md)
-2. [scheduler源码分析之入口函数](https://github.com/kube-incubator/kube-explorer/blob/master/content/kube-scheduler/code-analysis1.md)
-3. 资源调度（Predicates 策略）
-4. 关系调度（满足 Pod、Node 之间的关系）
-5. 优先级调度（Priority策略）
-6. 抢占式调度（Preemption 策略）
-7. 外部调度（scheduler extender，类似 webhook）
